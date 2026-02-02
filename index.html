@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Room · Control de Consolas</title>
+
+<style>
+:root{
+  --neon-blue:#00e5ff;
+  --neon-purple:#b100ff;
+  --bg-dark:#0b0b14;
+  --card-dark:#14142b;
+  --text-light:#eaeaff;
+}
+*{box-sizing:border-box;font-family:Arial}
+body{
+  margin:0;
+  padding:20px;
+  background:radial-gradient(circle at top,#1a1a3a,var(--bg-dark));
+  color:var(--text-light)
+}
+h1{text-align:center;color:var(--neon-blue);text-shadow:0 0 10px var(--neon-blue)}
+.topbar{text-align:center;margin-top:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;margin-top:30px}
+.console{
+  background:linear-gradient(160deg,var(--card-dark),#0e0e22);
+  border:1px solid var(--neon-purple);
+  border-radius:12px;
+  padding:15px;
+  box-shadow:0 0 15px rgba(177,0,255,.3)
+}
+.console h2{margin:0;color:var(--neon-purple)}
+input,button{
+  width:100%;
+  margin-top:6px;
+  padding:8px;
+  border:none;
+  border-radius:6px
+}
+input{background:#1c1c3a;color:#fff}
+button{
+  background:linear-gradient(90deg,var(--neon-blue),var(--neon-purple));
+  font-weight:bold;
+  cursor:pointer
+}
+.summary{
+  margin-top:25px;
+  padding:20px;
+  background:#0f0f25;
+  border-radius:12px;
+  border:1px solid var(--neon-blue)
+}
+@media print{
+  body{background:#fff;color:#000}
+  button,input,.topbar{display:none}
+  .console,.summary{box-shadow:none;border:1px solid #000}
+}
+</style>
+</head>
+
+<body>
+
+<h1>🎮 Game Room · Control Diario</h1>
+
+<div class="topbar">
+  <button onclick="changeDay(-1)">⬅ Día anterior</button>
+  <strong id="currentDate"></strong>
+  <button onclick="changeDay(1)">Día siguiente ➡</button>
+  <div>🕒 Hora actual: <span id="currentTime"></span></div>
+</div>
+
+<div class="summary">
+  <label><strong>👤 Empleado del día</strong></label>
+  <input id="employeeInput" placeholder="Nombre del empleado">
+  <button onclick="saveEmployee()">Guardar empleado</button>
+</div>
+
+<div class="grid" id="consoles"></div>
+
+<div class="summary">
+  <h3>📊 Resumen del Día</h3>
+  <p>Total horas: <span id="totalHours">0</span></p>
+  <p>Total vendido: $<span id="totalMoney">0</span></p>
+</div>
+
+<div class="summary">
+  <h3>💸 Gastos del Día</h3>
+  <input id="expDesc" placeholder="Descripción del gasto">
+  <input id="expVal" type="number" placeholder="Valor">
+  <button onclick="addExpense()">Agregar gasto</button>
+  <div id="expList"></div>
+  <p>Total gastos: $<span id="dayExpenses">0</span></p>
+  <p><strong>Neto del día:</strong> $<span id="netDay">0</span></p>
+</div>
+
+<div class="summary">
+  <button onclick="printDay()">🖨 Imprimir cierre diario</button>
+</div>
+
+<div class="summary">
+  <h3>📆 Resumen Mensual</h3>
+  <p>Total vendido mes: $<span id="monthTotal">0</span></p>
+  <p>Total gastos mes: $<span id="monthExpenses">0</span></p>
+  <p><strong>Neto mensual:</strong> $<span id="monthNet">0</span></p>
+  <button onclick="printMonth()">🖨 Imprimir cierre mensual</button>
+</div>
+
+<script>
+const PRICE = 4000;
+let date = new Date().toISOString().slice(0,10);
+
+function key(){return "consoles_"+date}
+function expKey(){return "expenses_"+date}
+function empKey(){return "employee_"+date}
+function monthKey(){return date.slice(0,7)}
+
+let consoles = JSON.parse(localStorage.getItem(key())) || [];
+let expenses = JSON.parse(localStorage.getItem(expKey())) || [];
+
+if(consoles.length===0){
+  for(let i=1;i<=4;i++)
+    consoles.push({id:i,hours:0,money:0});
+  save();
+}
+
+function save(){
+  localStorage.setItem(key(),JSON.stringify(consoles));
+  localStorage.setItem(expKey(),JSON.stringify(expenses));
+}
+
+function render(){
+  const grid = document.getElementById("consoles");
+  grid.innerHTML="";
+  let th=0, tm=0;
+
+  consoles.forEach(c=>{
+    th+=c.hours; tm+=c.money;
+    grid.innerHTML+=`
+      <div class="console">
+        <h2>Consola ${c.id}</h2>
+        Horas: ${c.hours}<br>
+        Recaudo: $${c.money}
+        <input id="h${c.id}" type="number" step="0.5" placeholder="Horas">
+        <button onclick="start(${c.id})">Iniciar / Sumar</button>
+      </div>`;
+  });
+
+  document.getElementById("totalHours").textContent=th;
+  document.getElementById("totalMoney").textContent=tm;
+
+  let te=0;
+  document.getElementById("expList").innerHTML="";
+  expenses.forEach(e=>{
+    te+=e.val;
+    document.getElementById("expList").innerHTML+=`• ${e.desc}: $${e.val}<br>`;
+  });
+
+  document.getElementById("dayExpenses").textContent=te;
+  document.getElementById("netDay").textContent=tm-te;
+  document.getElementById("employeeInput").value = localStorage.getItem(empKey()) || "";
+
+  renderMonth();
+}
+
+function start(id){
+  const h=parseFloat(document.getElementById("h"+id).value);
+  if(!h) return;
+  const c=consoles.find(x=>x.id===id);
+  c.hours+=h;
+  c.money+=h*PRICE;
+  save(); render();
+}
+
+function addExpense(){
+  const d=document.getElementById("expDesc").value;
+  const v=parseFloat(document.getElementById("expVal").value);
+  if(!d||!v) return;
+  expenses.push({desc:d,val:v});
+  document.getElementById("expDesc").value="";
+  document.getElementById("expVal").value="";
+  save(); render();
+}
+
+function saveEmployee(){
+  const name=document.getElementById("employeeInput").value.trim();
+  if(!name) return alert("Ingresa el nombre del empleado");
+  localStorage.setItem(empKey(),name);
+  alert("Empleado guardado");
+}
+
+function printDay(){
+  if(!localStorage.getItem(empKey()))
+    return alert("Guarda el empleado primero");
+  window.print();
+}
+
+function renderMonth(){
+  let tm=0, te=0;
+  const m=monthKey();
+
+  Object.keys(localStorage).forEach(k=>{
+    if(k.startsWith("consoles_") && k.includes(m))
+      JSON.parse(localStorage.getItem(k)).forEach(c=>tm+=c.money);
+    if(k.startsWith("expenses_") && k.includes(m))
+      JSON.parse(localStorage.getItem(k)).forEach(e=>te+=e.val);
+  });
+
+  document.getElementById("monthTotal").textContent=tm;
+  document.getElementById("monthExpenses").textContent=te;
+  document.getElementById("monthNet").textContent=tm-te;
+}
+
+function printMonth(){
+  window.print();
+}
+
+function changeDay(n){
+  const d=new Date(date);
+  d.setDate(d.getDate()+n);
+  date=d.toISOString().slice(0,10);
+
+  consoles=JSON.parse(localStorage.getItem(key()))||[];
+  expenses=JSON.parse(localStorage.getItem(expKey()))||[];
+
+  if(consoles.length===0)
+    for(let i=1;i<=4;i++)
+      consoles.push({id:i,hours:0,money:0});
+
+  save();
+  document.getElementById("currentDate").textContent=new Date(date).toLocaleDateString();
+  render();
+}
+
+setInterval(()=>{
+  document.getElementById("currentTime").textContent=new Date().toLocaleTimeString();
+},1000);
+
+document.getElementById("currentDate").textContent=new Date(date).toLocaleDateString();
+render();
+</script>
+
+</body>
+</html>
